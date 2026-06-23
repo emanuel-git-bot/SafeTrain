@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role        String   @default("student") // student, admin, hr, company
+  permissions String?  // JSON array for fine-grained admin roles
+  cpf         String?  @unique
+  phone       String?
+  avatarUrl   String?
+  areaId      Int?
+  area        Area?    @relation(fields: [areaId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyStudent CompanyStudent?
+  enrollments    Enrollment[]
+  certificates   Certificate[]
+  orders         Order[]
+}
+
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String
+  cnpj        String?  @unique
+  areaId      Int?
+  area        Area?    @relation(fields: [areaId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vouchers        Voucher[]
+  companyStudents CompanyStudent[]
+  orders          Order[]
+}
+
+model CompanyStudent {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  companyId Int
+  user      User     @relation(fields: [userId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Course {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  areaId      Int?
+  area        Area?    @relation(fields: [areaId], references: [id])
+  level       String?
+  duration    String?
+  price       Float    @default(0)
+  image       String?
+  validityMonths Int?
+  published   Boolean  @default(false)
+  
+  certificateTemplateId Int?
+  certificateTemplate   CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courseSections CourseSection[]
+  modules      Module[]
+  enrollments  Enrollment[]
+  certificates Certificate[]
+  orders       Order[]
+}
+
+model CourseSection {
+  id        Int      @id @default(autoincrement())
+  courseId  Int
+  title     String
+  order     Int      @default(0)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  modules   Module[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Module {
+  id           Int      @id @default(autoincrement())
+  courseId     Int
+  title        String
+  type         String   // video, quiz
+  videoUrl     String?
+  duration     String?
+  minScreenTime Int?    // in seconds
+  passingScore Float?   // percentage
+  questions    String?  // for quiz (stored as JSON string)
+  order        Int      @default(0)
+  
+  sectionId    Int?
+  section      CourseSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  screenTimeLogs ScreenTimeLog[]
+}
+
+model Enrollment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  courseId  Int
+  status    String   @default("in_progress") // in_progress, completed
+  progress  Float    @default(0)
+  user      User     @relation(fields: [userId], references: [id])
+  course    Course   @relation(fields: [courseId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  screenTimeLogs ScreenTimeLog[]
+  certificates   Certificate[]
+}
+
+model ScreenTimeLog {
+  id           Int        @id @default(autoincrement())
+  enrollmentId Int
+  moduleId     Int
+  timeSpent    Int        @default(0) // seconds
+  completed    Boolean    @default(false)
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+  module       Module     @relation(fields: [moduleId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Certificate {
+  id           String     @id @default(uuid())
+  code         String     @unique // EPI-2024-CODE
+  hash         String
+  userId       Int
+  courseId     Int
+  enrollmentId Int
+  user         User       @relation(fields: [userId], references: [id])
+  course       Course     @relation(fields: [courseId], references: [id])
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+  issuedAt     DateTime   @default(now())
+  expiresAt    DateTime?
+}
+
+model Voucher {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  companyId   Int
+  status      String   @default("active") // active, used, revoked
+  usedById    Int?
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Area {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  courses     Course[]
+  companies   Company[]
+}
+
+model Plan {
+  id           Int      @id @default(autoincrement())
+  name         String
+  price        Float
+  voucherCount Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders       Order[]
+}
+
+model Coupon {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  discount    Float    // percentage
+  validUntil  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders      Order[]
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  
+  // B2B
+  companyId   Int?
+  planId      Int?
+  company     Company? @relation(fields: [companyId], references: [id])
+  plan        Plan?    @relation(fields: [planId], references: [id])
+  
+  // B2C
+  userId      Int?
+  courseId    Int?
+  user        User?    @relation(fields: [userId], references: [id])
+  course      Course?  @relation(fields: [courseId], references: [id])
+
+  couponId    Int?
+  coupon      Coupon?  @relation(fields: [couponId], references: [id])
+  
+  finalPrice  Float
+  status      String   @default("pending") // pending, paid, cancelled
+  
+  paymentMethod String? // pix, credit_card
+  gatewayId     String?
+  paymentUrl    String?
+  invoiceUrl    String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CertificateTemplate {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  backgroundImageUrl String?
+  elements           String?  // Stored as JSON string
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  courses            Course[]
+}
+
+model SystemSettings {
+  id            Int      @id @default(1)
+  activeGateway String   @default("pagbank")
+  gatewayToken  String?
+  updatedAt     DateTime @updatedAt
+}

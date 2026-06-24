@@ -1,32 +1,53 @@
-import crypto from 'node:crypto';
-
-const ALGORITHM = 'aes-256-cbc';
+import { Buffer } from 'node:buffer';
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-secret-key-32-chars-xxxx';
-const IV_LENGTH = 16;
 
-export function encrypt(text: string): string {
-  if (!text) return text;
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32)), iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+async function getCryptoKey() {
+  const rawKey = new TextEncoder().encode(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+  return await crypto.subtle.importKey(
+    'raw',
+    rawKey,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt', 'decrypt']
+  );
 }
 
-export function decrypt(text: string): string {
+export async function encrypt(text: string): Promise<string> {
+  if (!text) return text;
+  const key = await getCryptoKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(text);
+  
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encoded
+  );
+  
+  const ivHex = Buffer.from(iv).toString('hex');
+  const encryptedHex = Buffer.from(encrypted).toString('hex');
+  return `${ivHex}:${encryptedHex}`;
+}
+
+export async function decrypt(text: string): Promise<string> {
   if (!text) return text;
   try {
-    const textParts = text.split(':');
-    const ivHex = textParts.shift();
-    if (!ivHex) return text;
+    const [ivHex, encryptedHex] = text.split(':');
+    if (!ivHex || !encryptedHex) return text;
+    
     const iv = Buffer.from(ivHex, 'hex');
-    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32)), iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    const encrypted = Buffer.from(encryptedHex, 'hex');
+    const key = await getCryptoKey();
+    
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      encrypted
+    );
+    
+    return new TextDecoder().decode(decrypted);
   } catch (e) {
     console.error('Failed to decrypt data', e);
-    return text; // Return original if it fails (might be unencrypted legacy data)
+    return text;
   }
 }

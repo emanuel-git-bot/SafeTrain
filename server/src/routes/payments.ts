@@ -8,7 +8,7 @@ import { PrismaClient } from '@prisma/client';
 
 async function getProvider(prisma: PrismaClient) {
   const settings = await prisma.systemSettings.findFirst();
-  const token = settings?.gatewayToken ? decrypt(settings.gatewayToken) : 'mock-token';
+  const token = settings?.gatewayToken ? await decrypt(settings.gatewayToken) : 'mock-token';
   return new PagBankProvider(token);
 }
 

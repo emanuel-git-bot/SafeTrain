@@ -408,7 +408,7 @@ adminRoutes.put('/admin/settings', async (c) => {
   
   const data: any = { activeGateway, googleClientId, googleClientSecret };
   if (gatewayToken && gatewayToken.trim() !== '') {
-     data.gatewayToken = encrypt(gatewayToken);
+     data.gatewayToken = await encrypt(gatewayToken);
   }
   
   if (settings) {

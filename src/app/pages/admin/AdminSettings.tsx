@@ -123,22 +123,23 @@ export function AdminSettings() {
                 value={activeGateway}
                 onChange={(e) => setActiveGateway(e.target.value)}
               >
+                <option value="nubank">Nubank (PIX)</option>
                 <option value="pagbank">PagBank (PIX / Cartão)</option>
                 <option value="neon">Neon Bank (Em Breve)</option>
                 <option value="stripe">Stripe</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-mono text-muted-foreground block mb-1.5">API TOKEN DO GATEWAY</label>
-              <input
-                type="password"
-                placeholder={hasToken ? "******** (Token já configurado)" : "Insira o token de produção"}
+              <label className="text-xs font-mono text-muted-foreground block mb-1.5">CREDENCIAIS / API TOKEN DO GATEWAY</label>
+              <textarea
+                rows={3}
+                placeholder={hasToken ? "******** (Credenciais já configuradas)" : "Insira o token ou JSON de credenciais"}
                 value={gatewayToken}
                 onChange={(e) => setGatewayToken(e.target.value)}
                 className="w-full bg-muted border border-border rounded-md px-4 py-2.5 text-sm text-foreground font-mono focus:outline-none focus:border-amber-500/50"
               />
               <p className="text-xs text-muted-foreground mt-2">
-                Deixe em branco para manter o token atual. O token é armazenado de forma criptografada no banco de dados.
+                Deixe em branco para manter as credenciais atuais. O token é armazenado de forma criptografada no banco de dados.
               </p>
             </div>
             

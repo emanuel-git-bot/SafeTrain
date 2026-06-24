@@ -17,11 +17,22 @@ export const authenticate = createMiddleware<{ Bindings: Bindings, Variables: { 
   const token = authHeader.split(' ')[1];
   let payload;
   try {
-    payload = await verify(token, c.env.JWT_SECRET || 'supersecret');
+    payload = await verify(token, c.env.JWT_SECRET || 'supersecret', 'HS256');
   } catch (e: any) {
     return c.json({ error: 'Invalid token', details: e.message }, 401);
   }
   c.set('user', payload as UserPayload);
+  await next();
+});
+
+export const requireAdmin = createMiddleware<{ Bindings: Bindings, Variables: { user: UserPayload } }>(async (c, next) => {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  if (user.role !== 'admin') {
+    return c.json({ error: 'Acesso negado: Requer privilégios de administrador.' }, 403);
+  }
   await next();
 });
 

@@ -145,7 +145,7 @@ export function EnrollModal({
                       onChange={(e) => setPaymentMethod(e.target.value as any)}
                     >
                       <option value="pix">PIX</option>
-                      <option value="credit_card">Cartão de Crédito</option>
+                      {/* <option value="credit_card">Cartão de Crédito</option> */}
                     </select>
                   </div>
 

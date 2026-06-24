@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getPrisma } from '../plugins/prisma.js';
 import bcrypt from 'bcryptjs';
 import { generateCertificatePDF } from '../utils/pdfGenerator.js';
-import { authenticate, requirePermission, UserPayload } from '../middlewares/auth.js';
+import { authenticate, requirePermission, requireAdmin, UserPayload } from '../middlewares/auth.js';
 import { Bindings } from '../server.js';
 import { encrypt } from '../utils/crypto.js';
 
@@ -10,6 +10,7 @@ export const adminRoutes = new Hono<{ Bindings: Bindings, Variables: { user: Use
 
 // Auth hook applied globally or per route. To keep logic simple we can apply authenticate to all admin routes.
 adminRoutes.use('/admin/*', authenticate);
+adminRoutes.use('/admin/*', requireAdmin);
 
 // We need a proxy for R2 uploads
 adminRoutes.get('/uploads/:filename', async (c) => {
@@ -390,7 +391,7 @@ adminRoutes.get('/admin/settings', async (c) => {
   const prisma = getPrisma(c.env);
   let settings = await prisma.systemSettings.findFirst();
   if (!settings) {
-    settings = await prisma.systemSettings.create({ data: { activeGateway: 'pagbank' } });
+    settings = await prisma.systemSettings.create({ data: { activeGateway: 'nubank' } });
   }
   return c.json({
     activeGateway: settings.activeGateway,

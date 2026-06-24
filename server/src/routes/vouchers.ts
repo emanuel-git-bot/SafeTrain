@@ -11,24 +11,6 @@ voucherRoutes.post('/vouchers/activate', authenticate, async (c) => {
   const body = await c.req.json();
   const { code, courseId } = body as { code: string; courseId: number };
 
-  if (code.startsWith('VTC-')) {
-    let existing = await prisma.enrollment.findFirst({
-      where: { userId: jwtUser.id, courseId: Number(courseId) }
-    });
-
-    if (!existing) {
-      existing = await prisma.enrollment.create({
-        data: {
-          userId: jwtUser.id,
-          courseId: Number(courseId),
-          status: 'in_progress',
-          progress: 0
-        }
-      });
-    }
-    return c.json({ success: true, message: 'Voucher activated', enrollment: existing });
-  }
-
   const voucher = await prisma.voucher.findUnique({ where: { code } });
   if (!voucher || voucher.status !== 'active') {
     return c.json({ error: 'Invalid or already used voucher' }, 400);

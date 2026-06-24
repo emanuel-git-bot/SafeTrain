@@ -73,3 +73,22 @@ Para configurar o recebimento de pagamentos reais ou em ambiente Sandbox, você 
 2. Vá até a seção de **Integrações (API)**.
 3. Gere um **Token de Acesso (Bearer / API Key)**.
 4. Salve no painel Admin > Configurações.
+
+## 🔐 Configuração do Login com Google
+
+Para permitir que os usuários façam login ou cadastro usando o Google, você precisará gerar um Client ID no Google Cloud Console:
+
+1. Acesse o [Google Cloud Console](https://console.cloud.google.com/).
+2. Crie um novo projeto ou selecione um existente.
+3. No menu lateral de navegação, vá em **APIs e Serviços** > **Tela de consentimento OAuth**.
+   - Escolha o tipo de usuário (Geralmente Externo).
+   - Preencha o nome do app (ex: SafeTrain), e-mail de suporte e dados básicos solicitados. Salve.
+4. Vá em **APIs e Serviços** > **Credenciais**.
+5. Clique em **+ CRIAR CREDENCIAIS** e escolha **ID do cliente OAuth**.
+6. Selecione o Tipo de Aplicativo: **Aplicativo da Web**.
+7. Em **Origens JavaScript autorizadas**, adicione as URLs onde seu site roda (ex: `http://localhost:5173` para testes locais e `https://safetrain.com.br` para produção).
+8. Em **URIs de redirecionamento autorizados**, adicione também a URL do seu site.
+9. Clique em **Criar**. 
+10. O Google mostrará seu **Client ID** e **Client Secret**.
+11. Acesse o painel **Admin da Plataforma** > **Configurações** > **Login Social** e preencha os campos. O botão de Login com o Google usará essas credenciais.
+*(Nota: a lógica de criar a conta via Google é feita no backend, que recebe o token do Google disparado pelo frontend, valida usando o Client ID configurado e, se o e-mail não existir na base, registra o aluno automaticamente antes de realizar o login).*

@@ -242,5 +242,7 @@ model SystemSettings {
   id            Int      @id @default(1)
   activeGateway String   @default("pagbank")
   gatewayToken  String?
+  googleClientId String?
+  googleClientSecret String?
   updatedAt     DateTime @updatedAt
 }

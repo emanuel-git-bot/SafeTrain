@@ -394,17 +394,19 @@ adminRoutes.get('/admin/settings', async (c) => {
   }
   return c.json({
     activeGateway: settings.activeGateway,
-    hasToken: !!settings.gatewayToken
+    hasToken: !!settings.gatewayToken,
+    googleClientId: settings.googleClientId || '',
+    googleClientSecret: settings.googleClientSecret || ''
   });
 });
 
 adminRoutes.put('/admin/settings', async (c) => {
   const prisma = getPrisma(c.env);
   const body = await c.req.json();
-  const { activeGateway, gatewayToken } = body;
+  const { activeGateway, gatewayToken, googleClientId, googleClientSecret } = body;
   let settings = await prisma.systemSettings.findFirst();
   
-  const data: any = { activeGateway };
+  const data: any = { activeGateway, googleClientId, googleClientSecret };
   if (gatewayToken && gatewayToken.trim() !== '') {
      data.gatewayToken = encrypt(gatewayToken);
   }

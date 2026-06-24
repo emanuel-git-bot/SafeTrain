@@ -23,6 +23,8 @@ const CONFIG_SECTIONS = [
 export function AdminSettings() {
   const [activeGateway, setActiveGateway] = useState('pagbank');
   const [gatewayToken, setGatewayToken] = useState('');
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [googleClientSecret, setGoogleClientSecret] = useState('');
   const [hasToken, setHasToken] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -37,6 +39,8 @@ export function AdminSettings() {
       if (response) {
         setActiveGateway(response.activeGateway || 'pagbank');
         setHasToken(response.hasToken);
+        setGoogleClientId(response.googleClientId || '');
+        setGoogleClientSecret(response.googleClientSecret || '');
       }
     } catch (err) {
       console.error('Failed to load settings', err);
@@ -50,7 +54,7 @@ export function AdminSettings() {
     try {
       await apiFetch('/admin/settings', {
         method: 'PUT',
-        body: JSON.stringify({ activeGateway, gatewayToken })
+        body: JSON.stringify({ activeGateway, gatewayToken, googleClientId, googleClientSecret })
       });
       setMessage('Configurações de pagamento salvas com sucesso!');
       setGatewayToken('');
@@ -137,6 +141,31 @@ export function AdminSettings() {
                 Deixe em branco para manter o token atual. O token é armazenado de forma criptografada no banco de dados.
               </p>
             </div>
+            
+            <h3 className="text-sm font-medium text-foreground pt-4 border-t border-border">Login Social</h3>
+            
+            <div>
+              <label className="text-xs font-mono text-muted-foreground block mb-1.5">GOOGLE CLIENT ID</label>
+              <input
+                type="text"
+                placeholder="Ex: 123456789-abc...apps.googleusercontent.com"
+                value={googleClientId}
+                onChange={(e) => setGoogleClientId(e.target.value)}
+                className="w-full bg-muted border border-border rounded-md px-4 py-2.5 text-sm text-foreground font-mono focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+            
+            <div>
+              <label className="text-xs font-mono text-muted-foreground block mb-1.5">GOOGLE CLIENT SECRET</label>
+              <input
+                type="password"
+                placeholder="Opcional. Dependendo do fluxo, apenas o Client ID é necessário"
+                value={googleClientSecret}
+                onChange={(e) => setGoogleClientSecret(e.target.value)}
+                className="w-full bg-muted border border-border rounded-md px-4 py-2.5 text-sm text-foreground font-mono focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+
           </div>
           <div className="flex justify-end mt-5 pt-5 border-t border-border">
             <button 

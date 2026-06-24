@@ -58,7 +58,23 @@ npx tsx prisma/seed.ts
 
 Para configurar o recebimento de pagamentos reais ou em ambiente Sandbox, você precisará do token de integração (API Token) do gateway escolhido:
 
-### PagBank
+### Nubank (Gateway Principal)
+A integração com o Nubank (geralmente Nubank PJ) para emissão de PIX exige a criação de uma aplicação e geração de credenciais de acesso na sua conta.
+
+1. Acesse o **Painel Nubank PJ** ou portal do desenvolvedor do Nubank.
+2. Na área de **Integrações (API/Desenvolvedores)**, crie uma nova aplicação (API de Cobrança / PIX).
+3. O sistema gerará um **Client ID**, um **Client Secret** e, possivelmente, pedirá para você fazer upload de uma chave pública ou fornecerá um **Certificado (.pem / .p12)** para o mTLS.
+4. Monte essas credenciais em um formato JSON:
+   ```json
+   {
+     "clientId": "seu_client_id",
+     "clientSecret": "seu_client_secret",
+     "certificate": "seu_certificado_em_string"
+   }
+   ```
+5. Acesse o painel **Admin da Plataforma** > **Configurações**, selecione **Nubank (PIX)** e cole o JSON inteiro no campo de **Credenciais / API Token**.
+
+### PagBank (Alternativo)
 1. Acesse o **Painel PagBank Sandbox** (para testes) ou o seu **Painel PagBank Principal**.
 2. No menu lateral, navegue até **Vendas Online** > **Integrações**.
 3. Na seção de Autenticação/API, clique em **Gerar Token** (ou "Gerar novo token").

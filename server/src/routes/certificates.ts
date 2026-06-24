@@ -1,83 +1,91 @@
-import { FastifyInstance } from 'fastify';
-import { prisma } from '../plugins/prisma.js';
+import { Hono } from 'hono';
+import { getPrisma } from '../plugins/prisma.js';
 import { generateCertificatePDF } from '../utils/pdfGenerator.js';
+import { authenticate, UserPayload } from '../middlewares/auth.js';
+import { Bindings } from '../server.js';
 
-export async function certificateRoutes(server: FastifyInstance) {
-  server.get('/validar/:code', async (request, reply) => {
-    const { code } = request.params as any;
-    
-    const cert = await prisma.certificate.findUnique({
-      where: { code },
-      include: {
-        user: { select: { name: true, cpf: true } },
-        course: { select: { title: true, duration: true } }
-      }
-    });
+export const certificateRoutes = new Hono<{ Bindings: Bindings, Variables: { user: UserPayload } }>();
 
-    if (!cert) {
-      return reply.status(404).send({ valid: false });
+certificateRoutes.get('/validar/:code', async (c) => {
+  const prisma = getPrisma(c.env);
+  const code = c.req.param('code');
+  
+  const cert = await prisma.certificate.findUnique({
+    where: { code },
+    include: {
+      user: { select: { name: true, cpf: true } },
+      course: { select: { title: true, duration: true } }
     }
-
-    return {
-      valid: true,
-      issuedTo: cert.user.name,
-      document: cert.user.cpf,
-      course: cert.course.title,
-      duration: cert.course.duration,
-      issuedAt: cert.issuedAt
-    };
   });
 
-  server.get('/enrollments/:id/certificate', { preValidation: [server.authenticate] }, async (request, reply) => {
-    const { id } = request.params as any;
-    const user = request.user as any;
+  if (!cert) {
+    return c.json({ valid: false }, 404);
+  }
 
-    const enrollment = await prisma.enrollment.findUnique({
-      where: { id: Number(id) },
-      include: {
-        user: true,
-        course: {
-          include: {
-            certificateTemplate: true
-          }
-        },
-        certificates: true
-      }
-    });
+  return c.json({
+    valid: true,
+    issuedTo: cert.user.name,
+    document: cert.user.cpf,
+    course: cert.course.title,
+    duration: cert.course.duration,
+    issuedAt: cert.issuedAt
+  });
+});
 
-    if (!enrollment || enrollment.userId !== user.id) {
-      return reply.status(404).send({ error: 'Enrollment not found' });
-    }
+certificateRoutes.get('/enrollments/:id/certificate', authenticate, async (c) => {
+  const prisma = getPrisma(c.env);
+  const id = c.req.param('id');
+  const jwtUser = c.get('user');
 
-    if (enrollment.status !== 'completed') {
-      return reply.status(400).send({ error: 'Course not completed' });
-    }
-
-    let certificate = enrollment.certificates[0];
-    
-    // Fallback generate if not exists
-    if (!certificate) {
-      const code = `CERT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      certificate = await prisma.certificate.create({
-        data: {
-          userId: user.id,
-          courseId: enrollment.courseId,
-          enrollmentId: enrollment.id,
-          code,
-          hash: code
+  const enrollment = await prisma.enrollment.findUnique({
+    where: { id: Number(id) },
+    include: {
+      user: true,
+      course: {
+        include: {
+          certificateTemplate: true
         }
-      });
-    }
-
-    // Generate PDF buffer
-    try {
-      const pdfBuffer = await generateCertificatePDF(certificate, enrollment.course.certificateTemplate, enrollment.user, enrollment.course);
-      
-      reply.header('Content-Type', 'application/pdf');
-      reply.header('Content-Disposition', `attachment; filename="Certificado_${certificate.code}.pdf"`);
-      return reply.send(pdfBuffer);
-    } catch (err: any) {
-      return reply.status(500).send({ error: 'Error generating PDF: ' + err.message });
+      },
+      certificates: true
     }
   });
-}
+
+  if (!enrollment || enrollment.userId !== jwtUser.id) {
+    return c.json({ error: 'Enrollment not found' }, 404);
+  }
+
+  if (enrollment.status !== 'completed') {
+    return c.json({ error: 'Course not completed' }, 400);
+  }
+
+  let certificate = enrollment.certificates[0];
+  
+  if (!certificate) {
+    const code = `CERT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    certificate = await prisma.certificate.create({
+      data: {
+        userId: jwtUser.id,
+        courseId: enrollment.courseId,
+        enrollmentId: enrollment.id,
+        code,
+        hash: code
+      }
+    });
+  }
+
+  try {
+    const pdfBuffer = await generateCertificatePDF(certificate, enrollment.course.certificateTemplate, enrollment.user, enrollment.course);
+    
+    // Cloudflare Workers requires Uint8Array/ArrayBuffer for binary responses
+    const uint8Array = new Uint8Array(pdfBuffer);
+    
+    return new Response(uint8Array, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="Certificado_${certificate.code}.pdf"`
+      }
+    });
+  } catch (err: any) {
+    return c.json({ error: 'Error generating PDF: ' + err.message }, 500);
+  }
+});

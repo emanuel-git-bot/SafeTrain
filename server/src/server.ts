@@ -1,15 +1,5 @@
-import fastify, { FastifyRequest, FastifyReply } from 'fastify';
-import cors from '@fastify/cors';
-import jwt from '@fastify/jwt';
-import rateLimit from '@fastify/rate-limit';
-import multipart from '@fastify/multipart';
-import fastifyStatic from '@fastify/static';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
 import { courseRoutes } from './routes/courses.js';
@@ -23,95 +13,33 @@ import { analyticsRoutes } from './routes/analytics.js';
 import { ecommerceRoutes } from './routes/ecommerce.js';
 import { webhookRoutes } from './routes/webhooks.js';
 
-dotenv.config();
-
-const server = fastify({ logger: true });
-
-// Declare authenticate method on fastify instance
-declare module 'fastify' {
-  export interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-    requirePermission: (permission: string) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  }
-}
-
-// Plugins
-server.register(cors, { origin: '*' });
-
-server.register(multipart, {
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
-
-server.register(fastifyStatic, {
-  root: path.join(__dirname, '../uploads'),
-  prefix: '/uploads/',
-});
-
-server.register(jwt, {
-  secret: process.env.JWT_SECRET || 'supersecret'
-});
-
-server.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
-  try {
-    await request.jwtVerify();
-  } catch (err) {
-    reply.send(err);
-  }
-});
-
-server.decorate('requirePermission', (permission: string) => {
-  return async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      await request.jwtVerify();
-      const user = request.user as any;
-      
-      if (user.role !== 'admin') {
-        return reply.status(403).send({ error: 'Acesso negado: Requer privilégios de administrador.' });
-      }
-
-      if (user.permissions) {
-        const perms = JSON.parse(user.permissions);
-        if (!perms.includes(permission)) {
-          return reply.status(403).send({ error: `Acesso negado: Requer permissão '${permission}'.` });
-        }
-      }
-    } catch (err) {
-      reply.send(err);
-    }
-  };
-});
-
-server.register(rateLimit, {
-  max: 100,
-  timeWindow: '1 minute'
-});
-
-// Routes
-server.register(authRoutes);
-server.register(userRoutes);
-server.register(courseRoutes);
-server.register(paymentRoutes);
-server.register(voucherRoutes);
-server.register(companyRoutes);
-server.register(adminRoutes);
-server.register(classroomRoutes);
-server.register(certificateRoutes);
-server.register(analyticsRoutes);
-server.register(ecommerceRoutes);
-server.register(webhookRoutes);
-
-server.get('/health', async (request, reply) => {
-  return { status: 'ok', message: 'SafeTrain API is running' };
-});
-
-const start = async () => {
-  try {
-    await server.listen({ port: 3333, host: '0.0.0.0' });
-    console.log('Server running at http://localhost:3333');
-  } catch (err) {
-    server.log.error(err);
-    process.exit(1);
-  }
+export type Bindings = {
+  DB: D1Database;
+  BUCKET: R2Bucket;
+  JWT_SECRET: string;
 };
 
-start();
+const app = new Hono<{ Bindings: Bindings }>();
+
+// Global Middlewares
+app.use('*', cors({ origin: '*' }));
+
+// Routes
+app.route('/', authRoutes);
+app.route('/', userRoutes);
+app.route('/', courseRoutes);
+app.route('/', paymentRoutes);
+app.route('/', voucherRoutes);
+app.route('/', companyRoutes);
+app.route('/', adminRoutes);
+app.route('/', classroomRoutes);
+app.route('/', certificateRoutes);
+app.route('/', analyticsRoutes);
+app.route('/', ecommerceRoutes);
+app.route('/', webhookRoutes);
+
+app.get('/health', (c) => {
+  return c.json({ status: 'ok', message: 'SafeTrain API is running on Cloudflare Workers (Hono)' });
+});
+
+export default app;

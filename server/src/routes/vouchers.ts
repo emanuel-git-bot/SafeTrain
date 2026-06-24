@@ -1,62 +1,62 @@
-import { FastifyInstance } from 'fastify';
-import { prisma } from '../plugins/prisma.js';
+import { Hono } from 'hono';
+import { getPrisma } from '../plugins/prisma.js';
+import { authenticate, UserPayload } from '../middlewares/auth.js';
+import { Bindings } from '../server.js';
 
-export async function voucherRoutes(server: FastifyInstance) {
-  server.post('/vouchers/activate', { preValidation: [server.authenticate] }, async (request, reply) => {
-    const { code, courseId } = request.body as { code: string; courseId: number };
-    const user = request.user as any;
+export const voucherRoutes = new Hono<{ Bindings: Bindings, Variables: { user: UserPayload } }>();
 
-    // We can also allow generic "VTC-" codes for testing as per UI
-    if (code.startsWith('VTC-')) {
-      // Mock activation success
-      let existing = await prisma.enrollment.findFirst({
-        where: { userId: user.id, courseId: Number(courseId) }
-      });
+voucherRoutes.post('/vouchers/activate', authenticate, async (c) => {
+  const prisma = getPrisma(c.env);
+  const jwtUser = c.get('user');
+  const body = await c.req.json();
+  const { code, courseId } = body as { code: string; courseId: number };
 
-      if (!existing) {
-        existing = await prisma.enrollment.create({
-          data: {
-            userId: user.id,
-            courseId: Number(courseId),
-            status: 'in_progress',
-            progress: 0
-          }
-        });
-      }
-      return { success: true, message: 'Voucher activated', enrollment: existing };
-    }
-
-    const voucher = await prisma.voucher.findUnique({ where: { code } });
-    if (!voucher || voucher.status !== 'active') {
-      return reply.status(400).send({ error: 'Invalid or already used voucher' });
-    }
-
-    await prisma.voucher.update({
-      where: { id: voucher.id },
-      data: { status: 'used', usedById: user.id }
+  if (code.startsWith('VTC-')) {
+    let existing = await prisma.enrollment.findFirst({
+      where: { userId: jwtUser.id, courseId: Number(courseId) }
     });
 
-    // Check if companyStudent link exists, if not create
-    const companyStudent = await prisma.companyStudent.findUnique({
-      where: { userId: user.id }
-    });
-
-    if (!companyStudent) {
-      await prisma.companyStudent.create({
-        data: { userId: user.id, companyId: voucher.companyId }
+    if (!existing) {
+      existing = await prisma.enrollment.create({
+        data: {
+          userId: jwtUser.id,
+          courseId: Number(courseId),
+          status: 'in_progress',
+          progress: 0
+        }
       });
     }
+    return c.json({ success: true, message: 'Voucher activated', enrollment: existing });
+  }
 
-    // Create enrollment
-    const enrollment = await prisma.enrollment.create({
-      data: {
-        userId: user.id,
-        courseId: Number(courseId),
-        status: 'in_progress',
-        progress: 0
-      }
-    });
+  const voucher = await prisma.voucher.findUnique({ where: { code } });
+  if (!voucher || voucher.status !== 'active') {
+    return c.json({ error: 'Invalid or already used voucher' }, 400);
+  }
 
-    return { success: true, enrollment };
+  await prisma.voucher.update({
+    where: { id: voucher.id },
+    data: { status: 'used', usedById: jwtUser.id }
   });
-}
+
+  const companyStudent = await prisma.companyStudent.findUnique({
+    where: { userId: jwtUser.id }
+  });
+
+  if (!companyStudent) {
+    await prisma.companyStudent.create({
+      data: { userId: jwtUser.id, companyId: voucher.companyId }
+    });
+  }
+
+  const enrollment = await prisma.enrollment.create({
+    data: {
+      userId: jwtUser.id,
+      courseId: Number(courseId),
+      status: 'in_progress',
+      progress: 0
+    }
+  });
+
+  return c.json({ success: true, enrollment });
+});

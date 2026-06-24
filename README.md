@@ -64,6 +64,9 @@ Para configurar o recebimento de pagamentos reais ou em ambiente Sandbox, você 
 3. Na seção de Autenticação/API, clique em **Gerar Token** (ou "Gerar novo token").
 4. Copie o Token gerado e cole no painel **Admin da Plataforma** > **Configurações** > **API Token do Gateway**.
 
+> [!WARNING]
+> **Erro "whitelist access required" (PagSeguro Sandbox)**: Se ao testar pagamentos o gateway retornar o erro *whitelist access required. Contact PagSeguro*, isso significa que o PagBank está bloqueando o endereço de IP do servidor. No ambiente Cloudflare Workers, os IPs variam. Para o Sandbox, você precisa entrar em contato com o suporte ou adicionar sua faixa de IPs no painel PagSeguro. Em produção, geralmente o PagBank PIX/Cartão transparente requer autenticação mTLS ou registro prévio do Application. Para contornar no Sandbox, considere buscar documentação atualizada do PagBank Sandbox sobre "IP Whitelisting" ou desativar temporariamente o bloqueio se permitido na conta.
+
 ### Neon Bank (Em breve)
 *(Instruções para quando a integração for disponibilizada no futuro)*
 1. Acesse o portal Neon Pejota (para empresas).

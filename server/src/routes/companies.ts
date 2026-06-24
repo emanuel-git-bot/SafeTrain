@@ -1,137 +1,153 @@
-import { FastifyInstance } from 'fastify';
-import { prisma } from '../plugins/prisma.js';
+import { Hono } from 'hono';
+import { getPrisma } from '../plugins/prisma.js';
+import { authenticate, UserPayload } from '../middlewares/auth.js';
+import { Bindings } from '../server.js';
 
-export async function companyRoutes(server: FastifyInstance) {
-  server.addHook('preValidation', server.authenticate);
+export const companyRoutes = new Hono<{ Bindings: Bindings, Variables: { user: UserPayload } }>();
 
-  server.post('/companies', async (request, reply) => {
-    const { name, cnpj } = request.body as any;
-    const company = await prisma.company.create({ data: { name, cnpj } });
-    return company;
+// All company routes seem to require authentication since they were using a preValidation hook
+companyRoutes.use('*', authenticate);
+
+companyRoutes.post('/companies', async (c) => {
+  const prisma = getPrisma(c.env);
+  const body = await c.req.json();
+  const { name, cnpj } = body;
+  const company = await prisma.company.create({ data: { name, cnpj } });
+  return c.json(company);
+});
+
+companyRoutes.get('/b2b/plans', async (c) => {
+  const prisma = getPrisma(c.env);
+  const plans = await prisma.plan.findMany({ orderBy: { price: 'asc' } });
+  return c.json(plans);
+});
+
+companyRoutes.post('/b2b/orders/simulate', async (c) => {
+  const prisma = getPrisma(c.env);
+  const body = await c.req.json();
+  const { planId, couponCode } = body;
+  const plan = await prisma.plan.findUnique({ where: { id: Number(planId) } });
+  if (!plan) return c.json({ error: 'Plano não encontrado' }, 404);
+  
+  return c.json({
+    planPrice: plan.price,
+    discount: 0,
+    finalPrice: plan.price,
+    coupon: null
   });
+});
 
-  server.get('/b2b/plans', async (request, reply) => {
-    return prisma.plan.findMany({ orderBy: { price: 'asc' } });
-  });
+companyRoutes.post('/b2b/orders', async (c) => {
+  const prisma = getPrisma(c.env);
+  const jwtUser = c.get('user');
+  const body = await c.req.json();
+  const { planId } = body;
 
-  server.post('/b2b/orders/simulate', async (request, reply) => {
-    const { planId, couponCode } = request.body as any;
-    const plan = await prisma.plan.findUnique({ where: { id: Number(planId) } });
-    if (!plan) return reply.status(404).send({ error: 'Plano não encontrado' });
-    
-    // Simplification: No coupon logic for now, just return plan price
-    return {
-      planPrice: plan.price,
-      discount: 0,
+  if (!jwtUser.companyId) {
+    return c.json({ error: 'Acesso negado: Usuário não pertence a uma empresa.' }, 403);
+  }
+
+  const plan = await prisma.plan.findUnique({ where: { id: Number(planId) } });
+  if (!plan) return c.json({ error: 'Plano não encontrado' }, 404);
+
+  const order = await prisma.order.create({
+    data: {
+      companyId: jwtUser.companyId,
+      planId: plan.id,
       finalPrice: plan.price,
-      coupon: null
+      status: 'completed'
+    }
+  });
+
+  const vouchers = [];
+  for (let i = 0; i < plan.voucherCount; i++) {
+    vouchers.push({
+      companyId: jwtUser.companyId,
+      code: `VTC-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    });
+  }
+
+  await prisma.voucher.createMany({ data: vouchers });
+
+  return c.json({ success: true, orderId: order.id, vouchersGenerated: plan.voucherCount });
+});
+
+companyRoutes.post('/companies/:id/purchase', async (c) => {
+  const prisma = getPrisma(c.env);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const { quantity } = body;
+  
+  const vouchers = [];
+  for (let i = 0; i < quantity; i++) {
+    vouchers.push({
+      companyId: Number(id),
+      code: `VTC-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    });
+  }
+
+  await prisma.voucher.createMany({ data: vouchers });
+  return c.json({ success: true, count: quantity });
+});
+
+companyRoutes.get('/companies/:id/vouchers', async (c) => {
+  const prisma = getPrisma(c.env);
+  const id = c.req.param('id');
+  const vouchers = await prisma.voucher.findMany({ where: { companyId: Number(id) } });
+  return c.json(vouchers);
+});
+
+companyRoutes.post('/companies/:id/distribute', async (c) => {
+  return c.json({ success: true, message: 'Emails sent successfully' });
+});
+
+companyRoutes.get('/companies/:id/students', async (c) => {
+  const prisma = getPrisma(c.env);
+  const id = c.req.param('id');
+  const search = c.req.query('search');
+  
+  const students = await prisma.companyStudent.findMany({
+    where: { 
+      companyId: Number(id),
+      ...(search ? {
+        user: {
+          name: {
+            contains: search
+          }
+        }
+      } : {})
+    },
+    include: {
+      user: {
+        include: {
+          enrollments: true,
+          certificates: true
+        }
+      }
+    }
+  });
+
+  const result = students.map(cs => {
+    const u = cs.user;
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      status: u.enrollments.length > 0 ? (u.certificates.length > 0 ? 'certified' : 'in_progress') : 'pending',
+      progress: u.enrollments.length > 0 ? u.enrollments[0].progress : 0,
+      courses: u.enrollments.length,
+      cert: u.certificates.length > 0
     };
   });
 
-  server.post('/b2b/orders', async (request, reply) => {
-    const user = request.user as any;
-    const { planId } = request.body as any;
+  return c.json(result);
+});
 
-    if (!user.companyId) {
-      return reply.status(403).send({ error: 'Acesso negado: Usuário não pertence a uma empresa.' });
-    }
-
-    const plan = await prisma.plan.findUnique({ where: { id: Number(planId) } });
-    if (!plan) return reply.status(404).send({ error: 'Plano não encontrado' });
-
-    const order = await prisma.order.create({
-      data: {
-        companyId: user.companyId,
-        planId: plan.id,
-        finalPrice: plan.price,
-        status: 'completed'
-      }
-    });
-
-    const vouchers = [];
-    for (let i = 0; i < plan.voucherCount; i++) {
-      vouchers.push({
-        companyId: user.companyId,
-        code: `VTC-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-      });
-    }
-
-    await prisma.voucher.createMany({ data: vouchers });
-
-    return { success: true, orderId: order.id, vouchersGenerated: plan.voucherCount };
+companyRoutes.delete('/companies/:id/students/:userId', async (c) => {
+  const prisma = getPrisma(c.env);
+  const userId = c.req.param('userId');
+  await prisma.companyStudent.delete({
+    where: { userId: Number(userId) }
   });
-
-  server.post('/companies/:id/purchase', async (request, reply) => {
-    const { id } = request.params as any;
-    const { quantity } = request.body as any;
-    
-    // Mocking Stripe purchase -> Generate Vouchers immediately
-    const vouchers = [];
-    for (let i = 0; i < quantity; i++) {
-      vouchers.push({
-        companyId: Number(id),
-        code: `VTC-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-      });
-    }
-
-    await prisma.voucher.createMany({ data: vouchers });
-    return { success: true, count: quantity };
-  });
-
-  server.get('/companies/:id/vouchers', async (request, reply) => {
-    const { id } = request.params as any;
-    return prisma.voucher.findMany({ where: { companyId: Number(id) } });
-  });
-
-  server.post('/companies/:id/distribute', async (request, reply) => {
-    // Mock distribution via email
-    return { success: true, message: 'Emails sent successfully' };
-  });
-
-  server.get('/companies/:id/students', async (request, reply) => {
-    const { id } = request.params as any;
-    const { search } = request.query as any;
-    
-    const students = await prisma.companyStudent.findMany({
-      where: { 
-        companyId: Number(id),
-        ...(search ? {
-          user: {
-            name: {
-              contains: search
-            }
-          }
-        } : {})
-      },
-      include: {
-        user: {
-          include: {
-            enrollments: true,
-            certificates: true
-          }
-        }
-      }
-    });
-
-    return students.map(cs => {
-      const u = cs.user;
-      return {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        status: u.enrollments.length > 0 ? (u.certificates.length > 0 ? 'certified' : 'in_progress') : 'pending',
-        progress: u.enrollments.length > 0 ? u.enrollments[0].progress : 0,
-        courses: u.enrollments.length,
-        cert: u.certificates.length > 0
-      };
-    });
-  });
-
-  server.delete('/companies/:id/students/:userId', async (request, reply) => {
-    const { id, userId } = request.params as any;
-    await prisma.companyStudent.delete({
-      where: { userId: Number(userId) }
-    });
-    return { success: true };
-  });
-}
+  return c.json({ success: true });
+});

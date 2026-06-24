@@ -1,4 +1,4 @@
-export const API_URL = 'http://localhost:3333';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://safetrain-api.advogadoscerviegabriel.workers.dev';
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('jwt_token');

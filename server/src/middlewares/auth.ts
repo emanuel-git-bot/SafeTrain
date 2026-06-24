@@ -15,13 +15,14 @@ export const authenticate = createMiddleware<{ Bindings: Bindings, Variables: { 
     return c.json({ error: 'Unauthorized' }, 401);
   }
   const token = authHeader.split(' ')[1];
+  let payload;
   try {
-    const payload = await verify(token, c.env.JWT_SECRET || 'supersecret');
-    c.set('user', payload as UserPayload);
-    await next();
-  } catch (e) {
-    return c.json({ error: 'Invalid token' }, 401);
+    payload = await verify(token, c.env.JWT_SECRET || 'supersecret');
+  } catch (e: any) {
+    return c.json({ error: 'Invalid token', details: e.message }, 401);
   }
+  c.set('user', payload as UserPayload);
+  await next();
 });
 
 export const requirePermission = (permission: string) => {

@@ -1,4 +1,4 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'https://safetrain-api.advogadoscerviegabriel.workers.dev';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://safetrain-api.safetrain2026.workers.dev';
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('jwt_token');

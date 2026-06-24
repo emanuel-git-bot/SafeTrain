@@ -9,8 +9,4 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "safetrain-d1"
-database_id = "6a39cb40-c252-45cf-a6bd-5482cc5d627d"
-
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "safetrain-assets"
+database_id = "cf659bc9-c579-4552-bb75-6eeaa3940d6a"

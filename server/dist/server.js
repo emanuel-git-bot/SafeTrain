@@ -1,43 +1,34 @@
-import fastify from 'fastify';
-import cors from '@fastify/cors';
-import jwt from '@fastify/jwt';
-import rateLimit from '@fastify/rate-limit';
-import dotenv from 'dotenv';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
-dotenv.config();
-const server = fastify({ logger: true });
-// Plugins
-server.register(cors, { origin: '*' });
-server.register(jwt, {
-    secret: process.env.JWT_SECRET || 'supersecret'
-});
-server.decorate('authenticate', async (request, reply) => {
-    try {
-        await request.jwtVerify();
-    }
-    catch (err) {
-        reply.send(err);
-    }
-});
-server.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute'
-});
+import { courseRoutes } from './routes/courses.js';
+import { paymentRoutes } from './routes/payments.js';
+import { voucherRoutes } from './routes/vouchers.js';
+import { companyRoutes } from './routes/companies.js';
+import { adminRoutes } from './routes/admin.js';
+import { classroomRoutes } from './routes/classroom.js';
+import { certificateRoutes } from './routes/certificates.js';
+import { analyticsRoutes } from './routes/analytics.js';
+import { ecommerceRoutes } from './routes/ecommerce.js';
+import { webhookRoutes } from './routes/webhooks.js';
+const app = new Hono();
+// Global Middlewares
+app.use('*', cors({ origin: '*' }));
 // Routes
-server.register(authRoutes);
-server.register(userRoutes);
-server.get('/health', async (request, reply) => {
-    return { status: 'ok', message: 'SafeTrain API is running' };
+app.route('/', authRoutes);
+app.route('/', userRoutes);
+app.route('/', courseRoutes);
+app.route('/', paymentRoutes);
+app.route('/', voucherRoutes);
+app.route('/', companyRoutes);
+app.route('/', adminRoutes);
+app.route('/', classroomRoutes);
+app.route('/', certificateRoutes);
+app.route('/', analyticsRoutes);
+app.route('/', ecommerceRoutes);
+app.route('/', webhookRoutes);
+app.get('/health', (c) => {
+    return c.json({ status: 'ok', message: 'SafeTrain API is running on Cloudflare Workers (Hono)' });
 });
-const start = async () => {
-    try {
-        await server.listen({ port: 3333, host: '0.0.0.0' });
-        console.log('Server running at http://localhost:3333');
-    }
-    catch (err) {
-        server.log.error(err);
-        process.exit(1);
-    }
-};
-start();
+export default app;

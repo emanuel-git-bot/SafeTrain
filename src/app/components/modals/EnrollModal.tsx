@@ -26,6 +26,9 @@ export function EnrollModal({
   const [enrollmentId, setEnrollmentId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card'>('pix');
   const [pixData, setPixData] = useState<{ qrCodeUrl: string, paymentUrl: string } | null>(null);
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
 
   const applyVoucher = async () => {
     setLoading(true);
@@ -52,9 +55,14 @@ export function EnrollModal({
     setLoading(true);
     setErrorMsg("");
     try {
+      const payload: any = { courseId: course.id, paymentMethod };
+      if (paymentMethod === 'credit_card') {
+        payload.cardDetails = { number: cardNumber, expiry: cardExpiry, cvv: cardCvv };
+      }
+
       const response = await apiFetch('/payments/checkout', {
         method: 'POST',
-        body: JSON.stringify({ courseId: course.id, paymentMethod })
+        body: JSON.stringify(payload)
       });
 
       if (response.paymentStatus === 'pending' && response.qrCodeUrl) {
@@ -145,7 +153,7 @@ export function EnrollModal({
                       onChange={(e) => setPaymentMethod(e.target.value as any)}
                     >
                       <option value="pix">PIX</option>
-                      {/* <option value="credit_card">Cartão de Crédito</option> */}
+                      <option value="credit_card">Cartão de Crédito</option>
                     </select>
                   </div>
 
@@ -154,6 +162,8 @@ export function EnrollModal({
                       <div>
                         <label className="text-xs font-mono text-muted-foreground block mb-1.5">NÚMERO DO CARTÃO</label>
                         <input
+                          value={cardNumber}
+                          onChange={(e) => setCardNumber(e.target.value)}
                           placeholder="1234 5678 9012 3456"
                           className="w-full bg-muted border border-border rounded-md px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/50 font-mono"
                         />
@@ -162,6 +172,8 @@ export function EnrollModal({
                         <div>
                           <label className="text-xs font-mono text-muted-foreground block mb-1.5">VALIDADE</label>
                           <input
+                            value={cardExpiry}
+                            onChange={(e) => setCardExpiry(e.target.value)}
                             placeholder="MM/AA"
                             className="w-full bg-muted border border-border rounded-md px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/50 font-mono"
                           />
@@ -169,6 +181,8 @@ export function EnrollModal({
                         <div>
                           <label className="text-xs font-mono text-muted-foreground block mb-1.5">CVV</label>
                           <input
+                            value={cardCvv}
+                            onChange={(e) => setCardCvv(e.target.value)}
                             placeholder="•••"
                             className="w-full bg-muted border border-border rounded-md px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/50 font-mono"
                           />

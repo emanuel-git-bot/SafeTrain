@@ -14,16 +14,27 @@ export class MercadoPagoProvider implements IPaymentProvider {
   async processPayment(request: PaymentRequest): Promise<PaymentResponse> {
     console.log(`Processing ${request.method} payment for Order ${request.orderId} via Mercado Pago...`);
     
-    if (request.method !== 'pix') {
+    if (request.method !== 'pix' && request.method !== 'credit_card') {
       return {
         success: false,
         status: 'failed',
-        errorMessage: 'O Mercado Pago Provider atual suporta apenas PIX.'
+        errorMessage: 'O Mercado Pago Provider atual suporta apenas PIX ou Cartão de Crédito.'
       };
     }
 
     try {
       const payment = new Payment(this.client);
+
+      if (request.method === 'credit_card') {
+        // Simulação do sucesso para fins do projeto educacional / ambiente Sandbox.
+        // Em produção, o token de cartão viria do frontend (via SDK Mercado Pago) e faríamos um `payment.create`
+        return {
+          success: true,
+          gatewayId: `MP-CC-MOCK-${Date.now()}`,
+          status: 'paid', // Simula aprovação imediata
+          paymentUrl: ''
+        };
+      }
 
       // Gera a cobrança PIX
       const body = {

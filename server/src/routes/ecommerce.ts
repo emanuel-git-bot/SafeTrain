@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { getPrisma } from '../plugins/prisma.js';
-import { NubankProvider } from '../services/payments/nubank.js';
+import { MercadoPagoProvider } from '../services/payments/mercadopago.js';
 import { decrypt } from '../utils/crypto.js';
 import { authenticate, UserPayload } from '../middlewares/auth.js';
 import { Bindings } from '../server.js';
@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client';
 async function getProvider(prisma: PrismaClient) {
   const settings = await prisma.systemSettings.findFirst();
   const token = settings?.gatewayToken ? await decrypt(settings.gatewayToken) : 'mock-token';
-  return new NubankProvider(token);
+  return new MercadoPagoProvider(token);
 }
 
 export const ecommerceRoutes = new Hono<{ Bindings: Bindings, Variables: { user: UserPayload } }>();
